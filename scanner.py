@@ -238,6 +238,7 @@ def scan_all(automaton, buffer):
     :return: A list of tokens found and a symbol table.
     """
     pos = 0
+    addr_offset = 0
     token_stream = []
     symbol_table = []
     table_hash = dict()
@@ -254,8 +255,9 @@ def scan_all(automaton, buffer):
                     size = (len(lexeme) + 1) * SZ_CHAR
                 elif token == 'float':
                     size = SZ_FLOAT
-                symbol_table.append((token, size, lexeme))
+                symbol_table.append((token, size, addr_offset, lexeme))
                 table_hash[lexeme] = len(table_hash)
+                addr_offset += size
             token_stream.append((token, table_hash[lexeme]))
         else:
             token_stream.append(token)
@@ -270,38 +272,52 @@ PRINT_SEPARATOR = '—' * 79
 def print_table(table):
     dg = 4  # number of digits in 'i' column
     wdt = 12  # width of 'Type' column; at least 4
-    wda = 8  # width of 'Address' column.
+    wda = SZ_MEMADDR  # width of 'Address' column.
     wds = 4  # width of 'Size' column; at least 4
-    header = (' {:' + str(dg - 1) + 's}i | {:' + str(wdt) + 's} | {:'
-              + str(wds) + 's} | Value').format('', 'Type', 'Size'.rjust(wds))
-    row_format = ' {:' + str(dg) + 'd} | {:' + str(wdt) + 's} | {:' + str(wds) + 's} | {}'
-    row_format_extra = (' {:' + str(dg) + 's} | {:' + str(wdt) + 's} | {:'
-                        + str(wds) + 's} | ').format('', '', '') + '{}'
+    header = ((' ' * dg) + 'i | '
+              + '{:' + str(wdt) + 's} | '
+              + '{:' + str(wda) + 's} | '
+              + '{:' + str(wds) + 's} | '
+              + 'Value').format('Type', 'Addr', 'Size'.rjust(wds))
+    row_format = (' {:' + str(dg) + 'd} | '
+                  + '{:' + str(wdt) + 's} | '
+                  + '{:0' + str(wda) + 'X} | '
+                  + '{:' + str(wds) + 's} | {}')
+    row_format_extra = (' ' + (' ' * dg) + ' | '
+                        + (' ' * wdt) + ' | '
+                        + (' ' * wda) + ' | '
+                        + (' ' * wds) + ' | ') + '{}'
 
     print('Sizes are in bytes. Assuming size of float = {}, char = {}.'
           .format(SZ_FLOAT, SZ_CHAR))
+    print('Identifiers are assumed to contain {}-bit memory address.'
+          .format(SZ_MEMADDR * 8))
+    print('Addresses are offsets from the beginning of the process\'s memory address space.')
     print(PRINT_SEPARATOR)
     print(header)
     print(PRINT_SEPARATOR)
-    for i, (tk, sz, lx) in enumerate(table):
-        size = (str(sz) if sz is not None else '-').rjust(wds)
+    for i, (tk, sz, ma, lx) in enumerate(table):
+        addr = ma
+        size = str(sz).rjust(wds)
         if '\n' not in lx:  # single-line entries
-            print(row_format.format(i, tk, size, lx))
+            print(row_format.format(i, tk, addr, size, lx))
         else:  # multi-line string entries
             lxs = lx.splitlines()
-            print(row_format.format(i, tk, size, lxs[0]))
+            print(row_format.format(i, tk, addr, size, lxs[0]))
             for lxj in lxs[1:]:
                 print(row_format_extra.format(lxj))
     print(PRINT_SEPARATOR)
 
 
 def print_stream(stream, table):
-    print('Format: <token, i (value)>, where i = address in the symbol table.')
+    print('Format: <token, addr (value)>, where addr = memory address offset.')
     print(PRINT_SEPARATOR)
     for tk in stream:
         if type(tk) == tuple:  # those with symbol-table entry
-            val = table[tk[1]][2]
-            print('  <{}, {} ({})>'.format(*tk, val))
+            i = tk[1]
+            val = table[i][-1]
+            addr = table[i][-2]
+            print(('  <{}, 0x{:0' + str(SZ_MEMADDR) + 'X} ({})>').format(tk[0], addr, val))
         else:
             print('  <{}>'.format(tk))
     print('Total: {} {}'.format(len(stream), 'token' if len(stream) == 1 else 'tokens'))
