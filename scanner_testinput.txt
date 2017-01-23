@@ -1,0 +1,25 @@
+# operators
++ ++ += / //
+
+x = -100.00
+x = x + y // 12.35  # comment
+y = -4.2e12 / x++
+
+# strings
+s1 = "hello world"
+s2 = """this string is triple-quoted;
+it can be multi-line;
+and it can contain " ""."""  # comment
+s3 = "quote escaped with \\: \" <-"
+s1 += s2 + s3
+empty = ""
+
+f++ / g // h
+
+# some floats here:
+.123
+0.23e+11
+10e9
+-7.001931E-13
+12.
+45.E0

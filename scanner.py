@@ -281,7 +281,7 @@ def print_table(table):
               + '{:' + str(wdt) + 's} | '
               + '{:' + str(wda) + 's} | '
               + '{:' + str(wds) + 's} | '
-              + 'Value').format('Type', 'Addr', 'Size'.rjust(wds))
+              + 'Name/Value').format('Type', 'Addr', 'Size'.rjust(wds))
     row_format = (' {:' + str(dg) + 'd} | '
                   + '{:' + str(wdt) + 's} | '
                   + '{:0' + str(wda) + 'X} | '
@@ -322,37 +322,16 @@ def print_stream(stream, table):
             print('  <{}>'.format(tk))
     print('Total: {} {}'.format(len(stream), 'token' if len(stream) == 1 else 'tokens'))
 
-
 # -------------------------------------------------------------------------- #
 
 
-TEST_TEXT = '''
-x = -100.00
-x = x + y // 12.35  # comment 1
-y = -4.2e12 / x++
-
-# strings
-s1 = "hello world"
-s2 = """this string is triple-quoted;
-it can be multi-line;
-and it can contain " ""."""  # comment 2
-s3 = "quote: \\" <- quote"
-s1 += s2 + s3
-
-f++ / g // h
-
-# some floats here:
-.123
-0.23e+11
-10e9
--7.001931E-13
-'''
-
 if __name__ == '__main__':
-    tokens, symtable = scan_all(build_automaton(), TEST_TEXT)
-    print('\nINPUT_BUFFER:')
-    print(TEST_TEXT)
-    print('\nSYMBOL_TABLE:')
+    f = open('scanner_testinput.txt', 'r')
+    test_text = ''.join(f.readlines())
+    tokens, symtable = scan_all(build_automaton(), test_text)
+    print('\nINPUT:')
+    print(test_text)
+    print('\nSYMBOL TABLE:')
     print_table(symtable)
-    print('\nTOKEN_STREAM:')
+    print('\nTOKEN STREAM:')
     print_stream(tokens, symtable)
