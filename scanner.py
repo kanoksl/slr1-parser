@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+__author__ = "Kanoksilp Jindadoungrut"
+
+
 FA_INITIAL_STATE = '00'
 
 # Each line is a transition in this format:
@@ -76,7 +80,7 @@ A01 other   A02 lookahead
 # The format is: <final_state> <token_type> [<notes/comment>]
 FA_FINAL_STATES = r'''
 02  comment         # ...
-04  identifier
+04  identifier      starts with letter or _
 13  string          "..." or """..."""
 15  op_floor_divide //
 16  op_divide       /
@@ -86,7 +90,6 @@ FA_FINAL_STATES = r'''
 29  float
 A02 op_equal
 '''
-
 
 # -------------------------------------------------------------------------- #
 
@@ -292,12 +295,10 @@ def print_table(table):
           .format(SZ_FLOAT, SZ_CHAR))
     print('Identifiers are assumed to contain {}-bit memory address.'
           .format(SZ_MEMADDR * 8))
-    print('Addresses are offsets from the beginning of the process\'s memory address space.')
     print(PRINT_SEPARATOR)
     print(header)
     print(PRINT_SEPARATOR)
-    for i, (tk, sz, ma, lx) in enumerate(table):
-        addr = ma
+    for i, (tk, sz, addr, lx) in enumerate(table):
         size = str(sz).rjust(wds)
         if '\n' not in lx:  # single-line entries
             print(row_format.format(i, tk, addr, size, lx))
@@ -310,17 +311,17 @@ def print_table(table):
 
 
 def print_stream(stream, table):
-    print('Format: <token, addr (value)>, where addr = memory address offset.')
+    print('Format: <token, i (value)>, where i = index in the symbol table.')
     print(PRINT_SEPARATOR)
     for tk in stream:
         if type(tk) == tuple:  # those with symbol-table entry
             i = tk[1]
             val = table[i][-1]
-            addr = table[i][-2]
-            print(('  <{}, 0x{:0' + str(SZ_MEMADDR) + 'X} ({})>').format(tk[0], addr, val))
+            print('  <{}, {} ({})>'.format(tk[0], i, val))
         else:
             print('  <{}>'.format(tk))
     print('Total: {} {}'.format(len(stream), 'token' if len(stream) == 1 else 'tokens'))
+
 
 # -------------------------------------------------------------------------- #
 
