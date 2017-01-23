@@ -326,12 +326,18 @@ def print_stream(stream, table):
 
 
 if __name__ == '__main__':
-    f = open('scanner_testinput.txt', 'r')
-    test_text = ''.join(f.readlines())
-    tokens, symtable = scan_all(build_automaton(), test_text)
-    print('\nINPUT:')
-    print(test_text)
-    print('\nSYMBOL TABLE:')
-    print_table(symtable)
-    print('\nTOKEN STREAM:')
-    print_stream(tokens, symtable)
+    TEST_FILE = 'scanner_testinput.txt'
+    print('Loading test input from: ' + TEST_FILE)
+    try:
+        f = open(TEST_FILE, 'r')
+        test_text = ''.join(f.readlines())
+        f.close()
+        tokens, symtable = scan_all(build_automaton(), test_text)
+        print('\nINPUT:')
+        print(test_text)
+        print('\nSYMBOL TABLE:')
+        print_table(symtable)
+        print('\nTOKEN STREAM:')
+        print_stream(tokens, symtable)
+    except IOError:
+        print('ERROR: Cannot find test input: ' + TEST_FILE)
