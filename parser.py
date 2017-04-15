@@ -292,7 +292,8 @@ class Parser:
             if (0, 1) in items:
                 self.action[j, SYM_FINAL] = ACT_ACCEPT
                 continue
-            complete_items = [idx for (idx, dp) in items if dp == len(rule_list[idx]) - 1]
+            complete_items = [idx for (idx, dp) in items if dp == len(rule_list[idx]) - 1
+                              or rule_list[idx][1] == SYM_EMPTY]  # [X -> . lambda].
             for idx in complete_items:
                 head = rule_list[idx][0]
                 for x in self.grammar.follows[head]:
@@ -324,9 +325,13 @@ class Parser:
                 head, *body = self.rule_list[self.goto[current_state, tk]]
                 print(' - action: reduce [{} -> {}]'.format(h.c(head), h.l(body, sep=' ')))
                 new_node = TreeNode(data=head, pr_str=h.c(head), pr_len=len(head))
-                for _ in body:
-                    node, current_state = stack.pop()
-                    new_node.insert_child(node)
+                if body[0] != SYM_EMPTY:
+                    for _ in body:
+                        node, current_state = stack.pop()
+                        new_node.insert_child(node)
+                else:
+                    emp_node = TreeNode(data=SYM_EMPTY, pr_str=h.c(SYM_EMPTY))
+                    new_node.insert_child(emp_node)
                 current_state = self.goto[stack[-1][1], head]
                 stack.append((new_node, current_state))
             elif self.action[current_state, tk] == ACT_ACCEPT:
