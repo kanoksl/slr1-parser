@@ -80,16 +80,6 @@ class Grammar:
         symbols.extend(sorted(self.terminals))
         return symbols
 
-    def colorize(self, symbol):
-        """ Colorize the symbol according to its type for printing. """
-        if symbol in {SYM_EMPTY, SYM_FINAL}:
-            color, bold = 'R', True
-        elif symbol in self.terminals:
-            color, bold = 'G', True
-        else:
-            color, bold = 'B', True
-        return util.colorize(symbol, color, bold)
-
 
 def find_firsts(rule_list, terminals, nonterminals):
     """ Find the first sets of given grammar symbols from the given production rules.
@@ -208,145 +198,137 @@ class Parser:
         """ Initialize a parser for the given context-free grammar. """
         self.grammar = grammar
         """ Context-free grammar for this parser. """
-        self.table = dict()
-        """ The SLR parsing table. The key is a tuple (state, symbol), and the value
-            is a tuple (action, next_state). """
-
+        self.rule_list = list()
+        """ Rule list of the augmented grammar. """
         self.states = list()
+        """ List of the DFA states. """
         self.action = dict()
         """ The parsing action table. The key is a tuple (state, terminal), and the
             value can be either Shift, Reduce, or Accept. If a pair (state, terminal)
             is not in this dict's keys, then parsing error occurs."""
         self.goto = dict()
-        """ The transition table. """
+        """ The parsing transition / reducing rule table. The key is a tuple (state, terminal), 
+            and the value is an integer which can be (1) the state to go to after shifting, or
+            (2) the index of the rule to use for reducing. The meaning of the value depends on
+            the action table value for the given key. """
 
         self._build_table()
 
     def _build_table(self):
-        start_symbol_old = self.grammar.start_symbol
+        """ Build the SLR(1) parsing table, i.e., fill the self.action and self.goto dict. """
+        # List of production rules.
         rule_list = self.grammar.rule_list.copy()
-        # Create augmented grammar by adding new start symbol.
-        start_symbol = str(start_symbol_old) + "'"
-        rule_list.insert(0, (start_symbol, start_symbol_old))
 
-        # Note that an LR item can be represented by a tuple (rule_idx, dot_pos).
+        # Create augmented grammar by adding new start symbol S' and a rule S' -> S.
+        new_ss = '{}\''.format(self.grammar.start_symbol)
+        rule_list.insert(0, (new_ss, self.grammar.start_symbol))
+        self.rule_list = rule_list
+
+        # Note that an LR item is represented by a tuple (idx, dp).
+        # Where idx is the index of a production rule in rule_list,
+        # and dp is the distinguished position in the rule body (rule_list[idx][1:]).
+        # Example: an item [S' -> S .] from the first rule is represented by (0, 1).
+
         def closure(items):
-            """ Return a set of LR items that is the closure of the given ones. """
-            clsr = items.copy() if type(items) == set else {items}
-            checklist = list(clsr)
-            updated = True
-            while updated and checklist:
-                updated = False
-                rule_idx, dot_pos = checklist.pop()
-                if dot_pos + 1 > len(rule_list[rule_idx]) - 1:
+            """ Return a set of LR items that is the closure of the given ones. 
+                :param items: An LR item, or a set of LR items.
+            """
+            closure_set = items.copy() if type(items) == set else {items}
+            checklist = list(closure_set)
+            while checklist:
+                idx, dp = checklist.pop()
+                body = rule_list[idx][1:]
+                if dp >= len(body):  # Complete items.
                     continue
-                right_of_dot = rule_list[rule_idx][dot_pos + 1]  # The symbol next to the dot.
-                if right_of_dot in self.grammar.terminals:
-                    clsr.add((rule_idx, dot_pos))
-                    updated = True
+                next_sym = body[dp]  # The symbol next to the distinguished position.
+                if next_sym in self.grammar.terminals and (idx, dp) not in closure_set:
+                    closure_set.add((idx, dp))
                     continue
-                # if right_of_dot == SYM_EMPTY: continue
-                rules = self.grammar.rule_dict[right_of_dot]
-                for prod in rules:
-                    prod_idx = rule_list.index((right_of_dot, *prod))
-                    new_item = (prod_idx, 0)
-                    if new_item not in clsr:
-                        clsr.add(new_item)
+                for ri, rule in enumerate(rule_list):
+                    if rule[0] != next_sym: continue
+                    new_item = (ri, 0)
+                    if new_item not in closure_set:
+                        closure_set.add(new_item)
                         checklist.append(new_item)
-                        updated = True
-            return clsr
-
-        def print_items(items):
-            """ Print a collection of LR-item tuples in easily-readable format. """
-            items = items if type(items) in {set, list} else [items]
-            for (rule_idx, dot_pos) in sorted(items):
-                rule = rule_list[rule_idx]
-                body = list(rule[1:])
-                body.insert(dot_pos, '.')
-                print('  {} {} {}'.format(rule[0], SYM_PROD, ' '.join(body)))
-
-        print('LR Items:')
-        print_items(closure({(0, 0)}))
+            return closure_set
 
         def goto(items, symbol):
-            """ If A -> a . X b is in items, then A -> a X . b is in goto(items, X) """
-            gotoset = set()
-            for ruleidx, dotpos in items:
-                if dotpos + 1 > len(rule_list[ruleidx]) - 1:
-                    continue
-                if rule_list[ruleidx][dotpos + 1] == symbol:
-                    gotoset.update(closure({(ruleidx, dotpos + 1)}))
-            return gotoset
+            """ The GOTO function. Defined as follows: if [A -> a . X b] is in items, 
+                then [A -> a X . b] is in GOTO(items, X). 
+                :param items: A set of LR items.
+                :param symbol: A grammar symbol.
+            """
+            goto_set = set()
+            for idx, dp in items:
+                body = rule_list[idx][1:]
+                if dp >= len(body):
+                    continue  # Complete items. No GOTO.
+                if body[dp] == symbol:
+                    new_item = (idx, dp + 1)
+                    goto_set.update(closure({new_item}))
+            return goto_set
 
-        def item_collection():
-            collection = [closure({(0, 0)})]
-            updated = True
-            while updated:
-                updated = False
-                for j, items in enumerate(collection):
-                    for x in self.grammar.all_symbols():
-                        gt = goto(items, x)
-                        if gt and gt not in collection:
-                            collection.append(gt)
-                            if x in self.grammar.terminals:
-                                self.action[j, x] = ACT_SHIFT
-                            self.goto[j, x] = len(collection) - 1
-                            updated = True
-                        elif gt in collection:
-                            if x in self.grammar.terminals:
-                                self.action[j, x] = ACT_SHIFT
-                            self.goto[j, x] = collection.index(gt)
-            return collection
+        # Compute the states of the DFA for this parser. Each state is a set of LR items.
+        init_state = closure({(0, 0)})
+        collection = [init_state]
+        updated = True
+        while updated:
+            updated = False
+            for j, items in enumerate(collection):
+                for x in self.grammar.all_symbols():
+                    gt = goto(items, x)
+                    if not gt: continue
+                    if x in self.grammar.terminals:
+                        self.action[j, x] = ACT_SHIFT
+                    if gt not in collection:
+                        collection.append(gt)
+                        self.goto[j, x] = len(collection) - 1
+                        updated = True
+                    else:
+                        self.goto[j, x] = collection.index(gt)
+        self.states = collection
 
-        col = item_collection()
-        print('\nNumber of states =', len(col))
-        for i, items in enumerate(col):
-            print('State', i, 'LR items:')
-            print_items(items)
-
-        for j, items in enumerate(col):
+        for j, items in enumerate(collection):
             if (0, 1) in items:
                 self.action[j, SYM_FINAL] = ACT_ACCEPT
-            else:
-                complete_items = [ruleidx for ruleidx, dps in items if dps == len(rule_list[ruleidx]) - 1]
-                for r in complete_items:
-                    head = rule_list[r][0]
-                    for x in self.grammar.follows[head]:
-                        if self.action.get((j, x), None) != ACT_SHIFT:
-                            self.action[j, x] = ACT_REDUCE
-                            self.goto[j, x] = r  # Index of rule to use for reduction.
-
-        self.states = col
-        util.print_parsing_table(self)
+                continue
+            complete_items = [idx for (idx, dp) in items if dp == len(rule_list[idx]) - 1]
+            for idx in complete_items:
+                head = rule_list[idx][0]
+                for x in self.grammar.follows[head]:
+                    if self.action.get((j, x), None) != ACT_SHIFT:  # Prefer shifting.
+                        self.action[j, x] = ACT_REDUCE
+                        self.goto[j, x] = idx  # Index of rule to use for reduction.
 
     def parse(self, tokens):
         """ Build a parse tree from the given stream of tokens and the parsing table.
-            :param tokens: An iterator that yields token in left-to-right order.
+            :param tokens: An iterator that yields token in left-to-right order. 
+                Assuming each token is a string.
         """
         print('Begin parsing...')
+        h = util.SyntaxHighlighter(self.grammar)
         current_state = 0
         stack = [(TreeNode(data=SYM_FINAL), current_state)]
         tk = next(tokens)
         while True:
             if (current_state, tk) not in self.action:
-                print('ERROR: unexpected token ' + self.grammar.colorize(tk) + ' at state ' + str(current_state))
+                print('ERROR: unexpected token ' + h.c(tk) + ' at state ' + str(current_state))
                 raise RuntimeError('Parsing error, unexpected token {} at state {}'.format(tk, current_state))
             elif self.action[current_state, tk] == ACT_SHIFT:
-                print(' - action: shift ' + self.grammar.colorize(tk))
+                print(' - action: shift ' + h.c(tk))
                 current_state = self.goto[current_state, tk]
-                stack.append((TreeNode(data=tk, dstr=self.grammar.colorize(tk)), current_state))
+                new_node = TreeNode(data=tk, pr_str=h.c(tk), pr_len=len(tk))
+                stack.append((new_node, current_state))
                 tk = next(tokens)
             elif self.action[current_state, tk] == ACT_REDUCE:
-                rule = self.grammar.rule_list[self.goto[current_state, tk] - 1]
-                print(' - action: reduce [{} -> {}]'.format(self.grammar.colorize(rule[0]), 
-                      ' '.join([self.grammar.colorize(sym) for sym in rule[1:]])))
-                newnode = TreeNode(data=rule[0], dstr=self.grammar.colorize(rule[0]))
-                for _ in range(len(rule) - 1):
+                head, *body = self.rule_list[self.goto[current_state, tk]]
+                print(' - action: reduce [{} -> {}]'.format(h.c(head), h.l(body, sep=' ')))
+                new_node = TreeNode(data=head, pr_str=h.c(head), pr_len=len(head))
+                for _ in body:
                     node, current_state = stack.pop()
-                    newnode.insert_child(node)
-                current_state = stack[-1][1]
-                current_state = self.goto[current_state, rule[0]]
-                stack.append((newnode, current_state))
+                    new_node.insert_child(node)
+                current_state = self.goto[stack[-1][1], head]
+                stack.append((new_node, current_state))
             elif self.action[current_state, tk] == ACT_ACCEPT:
                 print(' - action: ' + util.colorize('ACCEPT', 'G'))
                 node, _ = stack.pop()
@@ -360,11 +342,13 @@ class Parser:
 class TreeNode:
     """ A generic node for tree data structure. """
 
-    def __init__(self, data, dstr=None, children=None):
+    def __init__(self, data, pr_str=None, pr_len=None, children=None):
         self.data = data
         """ Data object for this node. """
-        self.dstr = dstr or str(data)
+        self.pr_str = pr_str or str(data)
         """ String of the data for printing. """
+        self.pr_len = pr_len or len(self.pr_str)
+        """ Length of the pr_str (for calculating indent when printing). """
         self.children = children or []
         """ List of child TreeNode objects ordered left-to-right. """
 
@@ -383,20 +367,13 @@ class TreeNode:
 # region:: Testing Code ::
 
 
-def get_sample_tokens():
-    # sample = 'repeat id = n + n * n until id < n'.split()
-    sample = 'if ( n * n ) + n / n > id + ( id - id ) then read id else id = n < n'.split()
-    # sample = 'id * id + id'.split()
-    # sample = 'if if other else other'.split()
-    sample.append(SYM_FINAL)
-    return iter(sample)
+TEST_TOKENS = 'if ( n * n ) + n / n > id + ( id - id ) then read id else id = n < n'
 
 
-def main(inputstr=None):
-    print('// begin parser test...' '\n')
+def main(input_str=TEST_TOKENS):
+    print('// Begin parser test...' '\n')
 
-    input_tks = inputstr or 'if ( n * n ) + n / n > id + ( id - id ) then read id else id = n < n'
-    tks_iter = input_tks.split()
+    tks_iter = input_str.split()
     tks_iter.append(SYM_FINAL)
     tks_iter = iter(tks_iter)
 
@@ -406,31 +383,37 @@ def main(inputstr=None):
 
     # Create a parser for the grammar.
     parser = Parser(grammar=grammar)
+    util.print_parser_dfa(parser)
+    print('\n' 'Parsing table:')
+    util.print_parsing_table(parser)
 
     # Parse sample tokens and print the tree.
     root_node = parser.parse(tokens=tks_iter)
     print('\n' 'Input tokens:')
-    print(input_tks)
+    print(input_str)
     print('\n' 'Parse tree for the input tokens:')
     util.print_tree(root_node)
 
-    print('\n' '// test finished')
-    return 0
+    print('\n' '// Test finished.')
 
 
-def main_interactive(grammarfile='def_grammar.txt'):
+def main_interactive(grammar_file):
     # Load the grammar from file.
-    grammar = Grammar(filepath=grammarfile)
+    grammar = Grammar(filepath=grammar_file)
     util.print_grammar(grammar, color=True)
+    h = util.SyntaxHighlighter(grammar)
 
     # Create a parser for the grammar.
     parser = Parser(grammar=grammar)
+    util.print_parser_dfa(parser)
+    print('\n' 'Parsing table:')
+    util.print_parsing_table(parser)
 
     while True:
-        input_tks = input('Enter a string of tokens to parse:\n >>> ')
+        input_tks = input('\n' 'Enter a string of tokens to parse:\n >>> ')
         tks_iter = input_tks.split()
         tks_iter.append(SYM_FINAL)
-        print('\n' 'Tokens: ' + ' '.join([grammar.colorize(t) for t in tks_iter]) + '\n')
+        print('\n' 'Tokens: ' + ' '.join([h.c(t) for t in tks_iter]) + '\n')
         tks_iter = iter(tks_iter)
         try:
             root_node = parser.parse(tokens=tks_iter)
@@ -440,15 +423,14 @@ def main_interactive(grammarfile='def_grammar.txt'):
         util.print_tree(root_node)
         print()
 
+
 # endregion
 
 
 if __name__ == '__main__':
     import sys
+
+    # Run this program trough the command line: python parser.py [path_to_grammar_file]
+    # The [path_to_grammar_file] is sys.argv[1].
     args = sys.argv[1:]
-    # args = ' '.join(args) if len(args) > 1 else args[0]
-    # main(args)
-    if args:
-        main_interactive(args[0])
-    else:
-        main_interactive()
+    main_interactive(grammar_file=(args[0] if args else 'def_grammar.txt'))
