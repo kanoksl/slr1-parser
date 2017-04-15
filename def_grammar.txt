@@ -1,0 +1,28 @@
+prog -> stSeq 
+stSeq -> st 
+stSeq -> st ; st 
+st -> ifSt 
+st -> repSt 
+st -> asgnSt 
+st -> readSt 
+ifSt -> if exp then stSeq 
+ifSt -> if exp then stSeq else stSeq
+repSt -> repeat stSeq until exp 
+asgnSt -> id = exp 
+readSt -> read id 
+exp -> arithExp 
+exp -> arithExp relOp arithExp 
+relOp -> < 
+relOp -> > 
+relOp -> == 
+arithExp -> term 
+arithExp -> term op1 term 
+op1 -> + 
+op1 -> - 
+term -> factor 
+term -> factor op2 factor 
+op2 -> * 
+op2 -> / 
+factor -> ( exp ) 
+factor -> n 
+factor -> id
