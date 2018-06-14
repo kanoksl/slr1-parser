@@ -1,0 +1,30 @@
+
+
+# Works
+
+id = ( n )
+id = n + n
+id = n + n * n
+id = n * n + n / n
+id = ( ( n + n ) + n ) + n
+id = n + ( ( n + n ) / n ) * n
+
+
+if id < id then read id else read id
+if id < id then read id else if id > id then read id else read id
+if id < id then read id ; read id else if id > id then read id
+
+
+repeat id = n + n until id < id
+repeat if id == id then id = n + n else id = n * n until id < id
+repeat id = n + n ; repeat id = n * n until id < id until id > id
+
+if id < id then read id ; repeat id = n + n until id < id
+if id < id then read id ; repeat id = n + n until id < id ; id = n / n
+
+
+# Errors
+
+id = n + n + n
+read id ; id = n + n ; read id
+if id < id then read id else read id else read id
