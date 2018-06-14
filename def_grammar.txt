@@ -1,6 +1,6 @@
-prog -> stSeq 
+prog -> stSeq
 stSeq -> st 
-stSeq -> st ; st 
+stSeq -> st ; st
 st -> ifSt 
 st -> repSt 
 st -> asgnSt 

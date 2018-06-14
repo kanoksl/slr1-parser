@@ -141,6 +141,18 @@ def build_automaton():
 # -------------------------------------------------------------------------- #
 
 
+class Scanner:
+    def __init__(self, automaton, sourcefile):
+        """
+
+        :param automaton: A tuple of automaton parts from build_automaton().
+        :param sourcefile: A string of path to the source code file to read.
+        """
+        self.automaton = automaton
+        self.sourcefile = sourcefile
+
+
+
 # Symbol sets. Note: 'e' is not included in the letter sets.
 SS_LETTER_LOWER = set('abcdefghijklmnopqrstuvwxyz')
 SS_LETTER_UPPER = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ')

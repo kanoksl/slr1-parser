@@ -54,7 +54,7 @@ class Grammar:
                 symbol, body = tokens[0], tokens[2:]
                 all_symbols.extend(body)
 
-                # Add the production rule rule and the left-hand-side non-terminal.
+                # Add the production rule and the left-hand-side non-terminal.
                 if symbol not in self.rule_dict:
                     self.nonterminals.append(symbol)
                     self.rule_dict[symbol] = list()
@@ -418,12 +418,14 @@ def main_interactive(grammar_file):
         input_tks = input('\n' 'Enter a string of tokens to parse:\n >>> ')
         tks_iter = input_tks.split()
         tks_iter.append(SYM_FINAL)
-        print('\n' 'Tokens: ' + ' '.join([h.c(t) for t in tks_iter]) + '\n')
+        inp = 'Tokens: ' + ' '.join([h.c(t) for t in tks_iter]) + '\n'
+        # print('\n' )
         tks_iter = iter(tks_iter)
         try:
             root_node = parser.parse(tokens=tks_iter)
         except RuntimeError:
             root_node = TreeNode(data='PARSE ERROR')
+        print('\n' + inp)
         print('\n' 'Parse tree for the input tokens:')
         util.print_tree(root_node)
         print()
